@@ -4,13 +4,15 @@ from utils.helpers import read_lines, normalize
 from gector.gec_model import GecBERTModel
 
 
-def predict_for_file(input_file, output_file, model, batch_size=32, to_normalize=False):
+def predict_for_file(input_file, output_file,output_cnt_file, model, batch_size=32, to_normalize=False):
+    total_tokens = 0
     test_data = read_lines(input_file)
     predictions = []
     cnt_corrections = 0
     batch = []
     for sent in test_data:
         batch.append(sent.split())
+        total_tokens += len(sent.split())
         if len(batch) == batch_size:
             preds, cnt = model.handle_batch(batch)
             predictions.extend(preds)
@@ -27,7 +29,12 @@ def predict_for_file(input_file, output_file, model, batch_size=32, to_normalize
 
     with open(output_file, 'w') as f:
         f.write("\n".join(result_lines) + '\n')
-    return cnt_corrections
+    
+    # test_data are List[str]
+    print(f"Cnt of corr: {cnt_corrections}; Total tokens: {total_tokens}")
+    with open(output_cnt_file, 'w') as fd:
+        fd.write(str(cnt_corrections / total_tokens))
+    return cnt_corrections / total_tokens
 
 
 def main(args):
@@ -45,8 +52,8 @@ def main(args):
                          del_confidence=args.additional_del_confidence,
                          is_ensemble=args.is_ensemble,
                          weigths=args.weights)
-
-    cnt_corrections = predict_for_file(args.input_file, args.output_file, model,
+    
+    cnt_corrections = predict_for_file(args.input_file, args.output_file,args.output_cnt_file, model,
                                        batch_size=args.batch_size, 
                                        to_normalize=args.normalize)
     # evaluate with m2 or ERRANT
@@ -68,6 +75,9 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('--output_file',
                         help='Path to the output file',
+                        required=True)
+    parser.add_argument('--output_cnt_file',
+                        help='Path to the output file which store the number of change made',
                         required=True)
     parser.add_argument('--max_len',
                         type=int,
